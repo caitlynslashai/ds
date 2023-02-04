@@ -1,0 +1,39 @@
+Design details:
+"make server" or just "make" runs the server. "make tests" runs the tests for output correctness. "make manyclients" runs the tests for connecting to the server with a large number of clients.
+
+specifically, "make manyclients" runs 20 threads with 10 clients each that each send 100 commands.
+
+Server functionality:
+When run as main:
+Loads all key/valuesize/value triads from storage into a dictionary.
+Cleans the storage file. ("set" functionality currently appends the line to a new line of the file without removing any previous entires for that key. cleaning the file replaces the contents with only one saved entry per key) 
+Creates a socket and binds it to localhost and port 9889. Listens on that socket.
+When a client connects, create a new thread for that client.
+Within each thread: wait for data to be sent.
+If data is of the form "GET <key>" with optional carriage returns and newlines, return the appropriate values for memcached protocol.  see github.com/memcached/memcached/blob/master/doc/protocol.txt
+Similar for "SET <key> <valuesize>\r\n<data block", which returns "STORED\r\n" or "NOT STORED\r\n"
+Otherwise, return a message appropriate to the user's input. 
+When a keyboard interrupt is detected, exit the server.
+get/set requests use threading.Lock() in order to only run one get/set request at any given time. 
+
+tests sends several get/set requests and asserts that the correct response is received.
+
+manyclients connects many clients to the server and is used to test server load. running python3 manyclients.py <threads> <clients_per_thread> <requests_per_client> can be used for custom test cases.
+
+Some known issues:
+Sometimes after closing the server it takes a variable amount of time before the port is released. Not actually sure what happens here or why it happens only sometimes.
+
+Limitations:
+Because the server starts a thread for each new client it starts to, eventually it hits a ThreadError. With 200 clients I consistently don't hit a ThreadError. With up to 700 I sometimes hit a ThreadError and sometimes don't. Because of the variability, it's difficult to judge an exact fail point.
+
+There is no specific error handling. For example, if a client's connection is refused due to a ThreadError, the server doesn't send any response - it just spits out an error to the terminal.
+
+if storage.txt doesn't exist the server doesn't run.
+
+Future improvements:
+Implement other functions like removing a key from storage without setting it
+Also add, replace
+Implementing flags (see memcached protocol)
+Increase memory so that the # of possible threads is higher
+Add hardcoded limit to number of clients
+Add error handling
